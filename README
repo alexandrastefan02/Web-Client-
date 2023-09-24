@@ -1,0 +1,101 @@
+==================================TEMA 4 PCOM==================================
+Pentru rezolvarea acestui assignment am folosit scheletul laboratului 9, iar 
+pentru JSON handling am folosit biblioteca Parson(parson.c & parson.h). 
+
+request.c
+In acest fisier, pornind de la codul din laborator, am creat cele trei tipuri
+de request-uri. Pentru GET si DELETE am adaugat header de "Host", Cookie si 
+Authorization(token), iar pentru POST, pentru ca exista payload, am adaugat 
+headerele de Content-Type si Content-Length, apoi am lasat randul liber necesar 
+si am atasat payload-ul efectiv. 
+
+client.c
+Incep main-ul prin a deschide un while in care deschid conexiunea cu server-ul 
+ce se va inchide odata cu intalnirea comenzii exit, unde este si loop-ul 
+intrerupt. Citesc comenzile date care sunt urmatoarele:
+
+*register*
+Creez un prompt prin utilizator si imi salvez in doua char* username-ul si parola.
+Intrucat request-ul de POST pentru aceasta comanda necesita un payload format JSON
+in care se afla creditentialele, se apelează json_value_init_object() pentru a i
+nițializa un nou obiect JSON. Această funcție returnează un pointer către un obiect 
+JSON_Value nou creat, care reprezintă un obiect JSON.Se apelează json_value_get_object()
+pentru a obține obiectul JSON din JSON_Value.
+Această funcție primește ca argument obiectul JSON_Value și returnează un pointer către 
+obiectul JSON_Object corespunzător.Se declară o variabilă serialized_string de tip char*
+și se inițializează cu NULL. Această variabilă va stoca șirul JSON serializat.Se apelează 
+json_object_set_string() de două ori pentru a seta valorile a două proprietăți în obiectul
+JSON. Prima apelare setează valoarea proprietății "username" cu valoarea variabilei username.
+A doua apelare setează valoarea proprietății "password" cu valoarea variabilei password.
+Se apelează json_serialize_to_string_pretty() pentru a serializa obiectul JSON într-un șir
+de caractere. Odata ce am pregatit payload-ul imi creez cererea folosind compute_post_request
+cu argumentele potrivite, setand cookies, token si query_params cu NULL. Vizualizand raspunsul
+serverului(receive_from_server), observ 2 posibilitati: cererea a fost reusita, se primeste codul
+200 si afisez mesajul corespunzator sau aparea o eroare legata de existenta unui cont cu aceste
+creditentiale, astfel ca printez "User already exists!".
+
+*login*
+Creez prompt-ul pentru user si fac acelasi proces pentru a pregati payload-ul unei cereri tot
+de tip POST. Daca exista un cont inregistrat cu creditentialele date, afisez un mesaj de succes,
+insa daca raspunsul serverului da eroare, exista o problema la username-ul/parola introduse asa 
+ca afisez mesajul "Wrong creditentials!".
+
+*enter_library*
+In urma login-ului, daca cererea a fost reusita, primesc cookie-ul de sesiune, necesar cererii 
+de a intra in library. Creez o cerere tip GET cu host-ul si url-ul aferente si dau ca parametru
+cookie-ul primit la login. Token-ul este in continuare null. Parsand raspunsul serverului folosind functiile getFirstLine(),
+ce intoarce prima linie a raspunsului server-ului unde am observat ca este mereu codul de eroare/sau de succes in cazul
+200. Extrag acest cod sub forma de string folosind extractErrorCode() si il compar cu posibilele valori(strcmp). 
+Egalitatea cu "200" ne garanteaza ca avem acces in library, pe cand "401" reprezinta cazul in care nu suntem autorizati
+sa intram in library. Acest lucru se intampla atunci cand cookie-ul din cerere este null(practic cand nu ne-am logat/
+loginul a esuat). Pentru 200 afisez "Valid Entry" iar pentru "400" afisez "You are not authorized to enter the library!"
+
+*add_book*
+Pentru add_book creez din nou un prompt pentru a lasa user-ul sa introduca titlul, autorul, publicatia, nr de pagini si genul cartii pe care doreste s o introduca. Aici verific daca sunt toate campurile completate("Please complete all the fields!\n") si daca numarul de pagini este valid(daca este numeric). In cazul in care este invalid, afisez mesajul “Invalid number of pages”. Procedez la fel in ceea ce priveste JSON, doar ca pentru campurile mentionate mai sus. Cererea trimisa catre server este de tip POST si contine toate argumentele necesare. In cazul in care token-ul de intrare in libray este NULL voi afisa mesajul “You need to enter the library first!”. Daca primim in schimb “200”, afisez “Book added succesfully”.  
+get_books
+Pentru aceasta comanda, creez o cerere de tip GET. Serverul ne poate raspunde, daca suntem deja in library, cu toate cartile pe care user ul le are adaugate in colectie, caz in care le afisez pur si simplu, in ca contrar, in care avem cod "403" afisez mesajul: “Please enter the library first!”
+*get_book_id 
+Pentru aceasta comanda a trebuit inainte de toate sa construiesc url ul corespunzator. Intr un char* alocat dinamic copiez prima parte a url ului care arata la fel indiferent de id ul cartii.  Urmeaza sa creez un mic prompt in care utilizatorul e rugat sa introduca id ul cartii pentru care vrea sa vada informatiile. Apoi folosind scanf citesc id ul introdus de user si folosesc strcat sa il concatenez cu restul url-ului pe care il dau ca argument functiei de compute_get_request. Parsez raspunsul de la server si observ urmatoarele scenarii: cod 200-totul a decurs bine, afisez informatiile cartii, 404-id introdus nu descrie nicio carte din colectia userului-afisez “Book not found!” sau 400-id ul introdus este invalid(nenumeric).Zltfel, parsez raspunsul serverului, in care se afla informatiile despre cartea ceruta, extrag fix aceasta parte si o printez la stdout.
+
+*delete_book*
+Aici, procedez ca la add_book, in ceea ce priveste url-ul. Creez cererea de tip DELETE de aceasta data(aproximativ la fel ca cea de get ca si structura) si primesc raspunsul de la server. Parsand mesajul primit de la server, apar urmatoarele cazuri: 404 - Nu exista cartea aceasta deci n-o pot sterge, 500-id ul introdus este invalid, nenumeric, 403 - Userul nu se afla in library, deci nu poate sterge o carte, altfel va fi clar 200 - cartea a fost stearsa cu succes. 
+
+*logout*
+Creez o cerere de tip get, o trimit la server si primesc mesajul serverului. Extrag codul de eroare(sau nu) din prima linie a raspunsului. Exista: 400 - cookie-ul este null, adica user-ul nu este logat, deci nu are cum sa se delogheze, caz in care printez "You are not logged in!. Altfel, afisez mesajul cum ca userul s-a delogat cu succes. 
+
+*exit*
+Comanda exit incheie conexiunea cu server-ul. Folosesc functia din schelet-ul de laborator close_connection(). Pentru a iesi din loop-ul de while si a incheia practic tot programul si interactiunea cu user-ul dau si break.
+
+functii ajutatoare
+*extractToken()*
+Se primește un șir de caractere json care reprezintă un obiect JSON.
+Se apelează json_parse_string() pentru a analiza șirul JSON și a-l transforma într-un obiect JSON (JSON_Value).
+Această funcție primește ca argument un șir de caractere reprezentând JSON-ul și returnează un pointer la obiectul JSON (JSON_Value) rezultat al analizei. Se obține un pointer la obiectul JSON (JSON_Object) utilizând funcția json_value_get_object().
+Această funcție primește ca argument obiectul JSON_Value și returnează un pointer către obiectul JSON_Object corespunzător.
+Se utilizează json_object_get_string() pentru a obține valoarea corespunzătoare proprietății "token" din obiectul JSON.
+Această funcție primește ca argument obiectul JSON_Object și numele proprietății și returnează un pointer la valoarea de tip șir de caractere (const char*). Se verifică dacă valoarea "token" este diferită de NULL.
+Dacă proprietatea "token" nu există în obiectul JSON sau are o valoare nulă, valoarea returnată va fi NULL.
+Dacă valoarea "token" există, se face o copie a acesteia utilizând funcția strdup().
+strdup() alocă memorie suficientă pentru șirul de caractere și copiază conținutul în memoria alocată.
+Se eliberează memoria folosită de obiectul JSON apelând json_value_free(root).
+Se returnează copia tokenului (tokenCopy). Dacă obiectul JSON nu a fost parsat corect sau nu a fost găsit un token valid, se returnează NULL.
+
+*getFirstLine()*
+Se parcurge șirul de caractere inputString până la întâlnirea caracterului nul ('\0') sau caracterului newline ('\n').
+În fiecare iterație, se incrementă length pentru a urmări lungimea primei linii.
+Se alocă memorie dinamică pentru firstLine utilizând malloc(length + 1).
+Se adaugă 1 pentru a rezerva spațiu și pentru caracterul nul de încheiere a șirului ('\0').
+Se verifică dacă alocarea memoriei pentru firstLine a avut succes.
+Dacă alocarea a eșuat, se afișează un mesaj de eroare și se returnează NULL.
+Se copiază caracterele din inputString în firstLine folosind un loop for.
+Se copiază caracterele până la lungimea primei linii (length).
+Se adaugă caracterul nul de încheiere a șirului ('\0') la sfârșitul lui firstLine.
+
+*extractErrorCode()*
+Se primește un șir de caractere și se returnează codul de eroare asociat, extrăgând al doilea cuvânt din șirul de intrare. Se realizează o copie a șirului original și se folosește funcția strtok pentru a separa șirul în cuvinte. Dacă un al doilea cuvânt este găsit, se realizează o copie a acestuia și se returnează. Altfel, se returnează NULL. La final, memoria alocată este eliberată pentru a evita scurgeri de memorie.
+
+*extractAndParseJSON()*
+Se primește un șir de caractere și se extrage un substring care conține un obiect JSON valid. Substringul JSON este apoi analizat și returnat ca o valoare JSON (rootValue). Se utilizează funcții precum strchr, strrchr, malloc, strncpy, json_parse_string și free pentru a realiza aceste operații. Dacă apar erori în găsirea sau analiza substringului JSON sau în alocarea de memorie, se returnează NULL.
+
+*extractCookieValue()*
+Se primește un șir de caractere și se extrage valoarea unui cookie din șirul respectiv. Se utilizează funcții precum strstr, strlen, malloc, strncpy pentru a realiza aceste operații. Dacă nu se găsesc prefixul sau sufixul cookie sau alocarea de memorie eșuează, se returnează NULL.
